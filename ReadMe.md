@@ -1,4 +1,4 @@
-# Ech.0
+# port-forwarder 
 
 A simple TCP port forwarder built in Go. It redirects traffic from a source port to a target port, making local services accessible over a network.
 
@@ -26,11 +26,11 @@ A simple TCP port forwarder built in Go. It redirects traffic from a source port
 ## Usage
 Basic port forwarding:
 ```sh
-./echo -source localhost:3000 -target :8080
+./port-forwarder -source localhost:3000 -target :8080
 ```
 Automatically find an available port:
 ```sh
-./echo -source localhost:3000
+./port-forwarder -source localhost:3000
 ```
 Access over LAN by using your local IP:
 ```sh
