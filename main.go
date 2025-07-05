@@ -1,42 +1,44 @@
 package main
 
 import (
-	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
-	"strconv"
+	"os/signal"
 	"strings"
 	"time"
 )
 
 func main() {
-	targetPort := flag.String("target", "", "target port to forward to (optional, e.g., :8080)")
-	sourcePort := flag.String("source", "", "source port to forward from (e.g., localhost:3000)")
+	listenPort := flag.String("listen", "", "port to listen on (optional, e.g., :8080)")
+	destinationAddr := flag.String("destination", "", "destination address to forward to (e.g., localhost:3000)")
+	startPort := flag.Int("start-port", 8000, "start of port range to find available port")
+	endPort := flag.Int("end-port", 9000, "end of port range to find available port")
 	flag.Parse()
 
-	if *sourcePort == "" {
-		log.Fatal("Please provide a source port (e.g., -source localhost:3000)")
+	if *destinationAddr == "" {
+		log.Fatal("Please provide a destination address (e.g., -destination localhost:3000)")
 	}
 
-	log.Printf("Testing connection to source %s...\n", *sourcePort)
-	testConn, err := net.DialTimeout("tcp", *sourcePort, 5*time.Second)
+	log.Printf("Testing connection to destination %s...\n", *destinationAddr)
+	testConn, err := net.DialTimeout("tcp", *destinationAddr, 5*time.Second)
 	if err != nil {
-		log.Fatalf("⚠️ Cannot connect to source %s: %v\n", *sourcePort, err)
+		log.Fatalf("⚠️ Cannot connect to destination %s: %v\n", *destinationAddr, err)
 	}
 	testConn.Close()
 
 	var listener net.Listener
-	if *targetPort == "" {
-		listener = getAvailableListener(8000, 9000)
+	if *listenPort == "" {
+		listener = getAvailableListener(*startPort, *endPort)
 	} else {
-		listener, err = net.Listen("tcp", "0.0.0.0"+*targetPort)
+		listener, err = net.Listen("tcp", "0.0.0.0"+*listenPort)
 		if err != nil {
-			log.Printf("⚠️ Port %s is in use, finding an available port...\n", *targetPort)
-			listener = getAvailableListener(8000, 9000)
+			log.Printf("⚠️ Port %s is in use, finding an available port...\n", *listenPort)
+			listener = getAvailableListener(*startPort, *endPort)
 		}
 	}
 	defer listener.Close()
@@ -45,20 +47,34 @@ func main() {
 	_, port, _ := net.SplitHostPort(addr)
 
 	fmt.Printf("\nPort forwarder started\n")
-	fmt.Printf("Forwarding from %s\n", *sourcePort)
-	fmt.Printf("To port %s\n", port)
+	fmt.Printf("Listening on port %s\n", port)
+	fmt.Printf("Forwarding to %s\n", *destinationAddr)
 	fmt.Printf("\nAvailable network interfaces:\n")
 	printNetworkInterfaces()
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt)
+
+	go func() {
+		<-shutdown
+		log.Println("\nShutting down server...")
+		listener.Close()
+	}()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
 			log.Println("⚠️ Failed to accept connection:", err)
 			continue
 		}
 		log.Printf("New connection from: %s\n", conn.RemoteAddr())
-		go handleConnection(conn, *sourcePort)
+		go handleConnection(conn, *destinationAddr)
 	}
+
+	log.Println("Shutdown complete.")
 }
 
 // Finds an available port within a given range
@@ -83,7 +99,7 @@ func printNetworkInterfaces() {
 
 	fmt.Println("  -----------------------------")
 	for _, iface := range interfaces {
-		if !isRelevantInterface(iface.Name) {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
 
@@ -99,14 +115,6 @@ func printNetworkInterfaces() {
 			}
 		}
 	}
-}
-
-// Filters only relevant network interfaces
-func isRelevantInterface(name string) bool {
-	name = strings.ToLower(name)
-	return strings.Contains(name, "ethernet") ||
-		strings.Contains(name, "wi-fi") ||
-		strings.Contains(name, "local area connection")
 }
 
 // Handles TCP connection forwarding
