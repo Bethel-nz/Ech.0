@@ -1,51 +1,84 @@
-# port-forwarder 
+# Go Port Forwarder
 
-A simple TCP port forwarder built in Go. It redirects traffic from a source port to a target port, making local services accessible over a network.
+A simple and efficient TCP port forwarder written in Go. It redirects network traffic from a local port to a specified destination address, making it easy to expose services running on one machine to others on the same network or even locally.
 
 ## Features
-- Port forwarding between any two TCP ports
-- Automatic target port selection if not provided
-- Displays available network interfaces for easier LAN access
-- Lightweight and fast using Go’s concurrency
+
+- **TCP Port Forwarding**: Forwards traffic from any local TCP port to a target address.
+- **Dynamic Port Allocation**: If a listen port is not specified or is already in use, the tool automatically scans for and selects an available port within a configurable range.
+- **Destination Health Check**: Before starting, it tests the connection to the destination address to ensure it's reachable.
+- **Network Interface Display**: Lists available network interfaces and their IP addresses, making it easy to access the forwarded port over the LAN.
+- **Graceful Shutdown**: Shuts down cleanly on interruption (Ctrl+C), ensuring all connections are properly closed.
+- **Concurrent Connection Handling**: Uses Go's concurrency model to handle multiple client connections simultaneously without blocking.
 
 ## Installation
-1. Clone the repository:
-   ```sh
-   git clone https://github.com/Bethel-nz/Ech.0.git
-   cd Ech.0
-   ```
-2. Build the executable:
-   ```sh
-   go build -o echo main.go
-   ```
-3. Run the forwarder:
-   ```sh
-   ./echo -source localhost:3000 -target :8080
-   ```
+
+1.  **Clone the repository:**
+
+    ```sh
+    git clone https://github.com/Bethel-nz/Ech.0.git
+    cd Ech.0
+    ```
+
+2.  **Build the executable:**
+    ```sh
+    go build -o forwarder main.go
+    ```
+    This will create an executable file named `forwarder` (or `forwarder.exe` on Windows).
 
 ## Usage
-Basic port forwarding:
-```sh
-./port-forwarder -source localhost:3000 -target :8080
+
+The application is configured via command-line flags.
+
 ```
-Automatically find an available port:
-```sh
-./port-forwarder -source localhost:3000
+./forwarder [flags]
 ```
-Access over LAN by using your local IP:
+
+### Configuration Flags
+
+| Flag           | Description                                                                   | Default | Required |
+| -------------- | ----------------------------------------------------------------------------- | ------- | -------- |
+| `-destination` | The target address to forward traffic to (e.g., `localhost:3000`).            | ""      | Yes      |
+| `-listen`      | The TCP port to listen on (e.g., `:8080`). If empty, finds an available port. | ""      | No       |
+| `-start-port`  | The beginning of the port range for automatic port discovery.                 | `8000`  | No       |
+| `-end-port`    | The end of the port range for automatic port discovery.                       | `9000`  | No       |
+
+### Examples
+
+#### 1. Forward a specific port
+
+Forward traffic from local port `8080` to a service running on `localhost:3000`.
+
 ```sh
-http://192.168.x.x:8080
+./forwarder -listen :8080 -destination localhost:3000
+```
+
+#### 2. Let the tool find an available port
+
+Forward traffic to `localhost:3000` by automatically finding a free port between `8000` and `9000` to listen on.
+
+```sh
+./forwarder -destination localhost:3000
+```
+
+The tool will print the listening port it has selected.
+
+#### 3. Use a custom port range for discovery
+
+If the default port range (`8000`-`9000`) is not suitable, you can specify your own.
+
+```sh
+./forwarder -destination localhost:3000 -start-port 9100 -end-port 9200
 ```
 
 ## Development
-Run in debug mode:
+
+To run the application in development mode without building the executable, you can use `go run`.
+
 ```sh
-go run main.go -source localhost:3000 -target :8080
+go run main.go -listen :8080 -destination localhost:3000
 ```
 
-
-## Why
-- Needed a way to access services running on my pc over the LAN network
-
 ## License
+
 This project is open-source under the MIT License.
